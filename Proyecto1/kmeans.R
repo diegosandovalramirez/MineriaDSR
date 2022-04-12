@@ -8,8 +8,8 @@ library(cluster)    # clustering algorithms
 library(factoextra) # clustering algorithms & visualization
 
 # spotify wrapper for rlang https://www.rcharlie.com/spotifyr/index.html######
-Sys.setenv(SPOTIFY_CLIENT_ID = 'b5d9bde4ece2478fbcce6d203790cab2')
-Sys.setenv(SPOTIFY_CLIENT_SECRET = '4ebd3a9a0ffb4df89a0ae4fc95211c96')
+Sys.setenv(SPOTIFY_CLIENT_ID = {{ secret.SPOTIFY_CLIENT_ID }})
+Sys.setenv(SPOTIFY_CLIENT_SECRET = {{ secret.SPOTIFY_CLIENT_SECRET }})
 access_token <- get_spotify_access_token()
 ##############################################################################
 
