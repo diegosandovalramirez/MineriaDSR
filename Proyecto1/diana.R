@@ -23,12 +23,11 @@ access_token <- get_spotify_access_token()
 auth_token <- get_spotify_authorization_code(scope = scope)
 ##############################################################################
 
-user_id = "xjkgrfqwqfbe92nuuvfu0r66f"
+#user_id = "xjkgrfqwqfbe92nuuvfu0r66f"
 
 #pregunta al usuario su id de spotify, el nombre de la playlist a crear, 
 #y el nombre la cancion a usar para crear la playlist
-
-#user_id <- readline(prompt = "Ingrese su user id: ")
+user_id <- readline(prompt = "Ingrese su user id: ")
 nombre_play = readline(prompt="Ingrese nombre la playlist a crear: ")
 selected_track = readline(prompt="Ingrese nombre de la cancion: ")
 
