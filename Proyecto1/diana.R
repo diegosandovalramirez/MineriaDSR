@@ -1,6 +1,7 @@
-# K-means Diego Sandoval R.
+# Diana - Diego Sandoval R.
 
 beats <- readRDS("beats.rds")
+library(dendextend) # for comparing two dendrograms
 library(spotifyr)   # Spotify wrapper
 library(dplyr)
 library(purrr)
@@ -10,6 +11,7 @@ library(tidyverse)  # data manipulation
 library(cluster)    # clustering algorithms
 library(factoextra) # clustering algorithms & visualization
 library(data.table)
+library(fpc)
 
 # spotify wrapper for rlang https://www.rcharlie.com/spotifyr/index.html######
 # client id y client secret
@@ -21,12 +23,12 @@ access_token <- get_spotify_access_token()
 auth_token <- get_spotify_authorization_code(scope = scope)
 ##############################################################################
 
-#user_id = "xjkgrfqwqfbe92nuuvfu0r66f"
+user_id = "xjkgrfqwqfbe92nuuvfu0r66f"
 
 #pregunta al usuario su id de spotify, el nombre de la playlist a crear, 
 #y el nombre la cancion a usar para crear la playlist
 
-user_id <- readline(prompt = "Ingrese su user id: ")
+#user_id <- readline(prompt = "Ingrese su user id: ")
 nombre_play = readline(prompt="Ingrese nombre la playlist a crear: ")
 selected_track = readline(prompt="Ingrese nombre de la cancion: ")
 
@@ -74,69 +76,65 @@ beats3 <- rbind(beats2, track_features)
 ## Para no perder los uri al normalizar, los volvemos el nombre de la fila
 rownames(beats3) <- beats3$uri
 
-## escalamos los datos
+############https://uc-r.github.io/hc_clustering############################################
 df <- scale(beats3[,2:9])
 
+beats_sample = df[sample(nrow(df), 2000), ]
 
-############ K-means https://uc-r.github.io/kmeans_clustering#################
+#Agregamos la cancion (track features) seleccionada al sample
+beats_sample <- rbind(beats_sample, df[track_features$uri,]) 
+row.names(beats_sample)[2001] <- track_features$uri
 
-## Prueba de varios kmeans
-#k2 <- kmeans(df, centers = 2, nstart = 25)
-k3 <- kmeans(df, centers = 3, nstart = 25)
-#fviz_cluster(k3, geom = "point",  data = df) + ggtitle("k = 3")
-#k4 <- kmeans(df, centers = 4, nstart = 25)
-#k5 <- kmeans(df, centers = 5, nstart = 25)
+## Probando distintos algoritmos
+# Dado los resultados de cluster globulares, decidi probar con jerarquicos
+# dada la alta dimensionalidad de los datos. Lo malo de esto es que significa
+# una carga al procesador gigantesca si uso todos los datos asi que decidi
+# usar un sample de 2000 canciones aleatorias. Decidi usar solo 2000 por 
+# limitaciones de hardware. Seguí una guía de ejemplos de la pagina mencionada un 
+# par de lineas mas arriba.
+# Decidi quedarme con el cluster de DIANA ya que trabaja de manera inversa:
+#   toma a todos los valores como un solo cluster y comienza a atomizarlos.
 
-##Visualizacion de varios kmeans
-#p1 <- fviz_cluster(k2, geom = "point", data = df) + ggtitle("k = 2")
-#p2 <- fviz_cluster(k3, geom = "point",  data = df) + ggtitle("k = 3")
-#p3 <- fviz_cluster(k4, geom = "point",  data = df) + ggtitle("k = 4")
-#p4 <- fviz_cluster(k5, geom = "point",  data = df) + ggtitle("k = 5")
+# Dissimilarity matrix
+d <- dist(beats_sample, method = "euclidean")
+##################################################################### 
+ diana_beats <- diana(beats_sample)
+ diana_beats$dc
+# pltree(diana_beats, cex = 0.6, hang = -1, main = "Dendrogram of diana")
+#####################################################################
 
-#library(gridExtra)
-#grid.arrange(p1, p2, p3, p4, nrow = 2)
+# Utilizamos el metodo de silueta para determinar cuantos cluster son los optimos
+# Determinamos como 4 cluster los optimos.
+# # fviz_nbclust(beats_sample, FUN = hcut, method = "silhouette")
+ diana_ward <- hclust(d, method = "ward.D2" )
+ diana_cut <- cutree(diana_ward, k = 4)
+ table(diana_cut)
+ 
+ diana_frame = data.frame(keyName=names(diana_cut), value=diana_cut, row.names=NULL)
 
-# viendo estos resultados nos vamos a quedar con el modela que tiene 3 clusters, 
-# ya que es el que mejor representa el dataset en grupos sin tener mayores overlaps,
-# con 4 o mas clusters, tenemos que existen clusters que cubren gran parte de otros.
-
-# 3 cluster en este dataset significa que podemos clasificar todas las
-# canciones en 3 tipos. Lo que puede resultar en muchos generos y muchos
-# estilos esten bajo la misma categoria (cluster). Sería necesario una
-# validacion del modelo para ver si efectivamente un kmeans de 3 clusters
-# es una buena representacion de la libreria de spotify, lo cual es debatible y
-# se escapa del scope del proyecto. Por ahora, nos quedamos con que el algoritmo
-# de kmeans puede que no sea el indicado para esta tarea por la complejidad
-# de los datos y su alta dimensionalidad. Intentar crear clusters esfericos
-# podría estar forzando clasificaciones que realmente pueden no ser pertinentes.
-
-## Ordenamos las canciones por clusters
-cluster_tracks=order(k3$cluster)
-## pasamos los datos de las canciones por cluster a un dataframe
-cluster_data = data.frame(beats3$uri[cluster_tracks],k3$cluster[cluster_tracks])
+ ## Ordenamos las canciones por clusters
+cluster_tracks=order(diana_frame$value)
+ ## pasamos los datos de las canciones por cluster a un dataframe
+cluster_data = data.frame(row.names(beats_sample),diana_frame$value[cluster_tracks])
 
 ## Reconocemos el cluster seleccionado
-selected_cluster = cluster_data[cluster_data$beats3.uri.cluster_tracks.== selected_uri, 2]
+selected_cluster = cluster_data[2001, 2]
 
 ##creamos un dataframe con las canciones del cluster seleccionado
-playlist_data = cluster_data[cluster_data$k3.cluster.cluster_tracks.== selected_cluster, ]
-##creamos una nueva playlist con aproximadamente 3hrs de reproduccion (45 canciones)
-## de manera aleatoria dentro del cluster. Hay ventajas y desventajas con hacer
-##esto. Una ventaja es que por probabilidad, incluso con canciones similares,
-## no obtendremos listas similares entre si. La desventaja es que se pueden 
-## tomar valores extremos del cluster que puede que no representen bien a la
-## cancion o se sienta que no pertenezcan a la recomendacion. 
+playlist_data = cluster_data[cluster_data$diana_frame.value.cluster_tracks.== selected_cluster, ]
+
+
 new_playlist = playlist_data[sample(nrow(playlist_data), 45), ]
-new_playlist[nrow(new_playlist) + 1,] = c(selected_uri,selected_cluster)
 
 ## Con spotifyr creamos una nueva playlist publica llamada Proyecto1
 playlist = create_playlist(user_id, nombre_play, public = TRUE, collaborative = FALSE,
-                description = NULL, authorization = get_spotify_authorization_code())
+                           description = NULL, authorization = get_spotify_authorization_code())
 
 ## Tomamos la playlist que creamos con las canciones aleatorias del cluster 
 ## y las volvemos un vector para crear el request y agregarlas a nuestra
 ##playlist.
 playlist_vector = as.character(new_playlist[,1])
+new_playlist[nrow(new_playlist) + 1,] = c(selected_uri,selected_cluster)
 
 ## Del vector de la playlist, obtenemos un string, pre-formateado de una
 ## manera oportuna para el futuro json
