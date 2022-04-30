@@ -22,16 +22,32 @@ access_token <- get_spotify_access_token()
 auth_token <- get_spotify_authorization_code(scope = scope)
 ##############################################################################
 
+#user_id = "xjkgrfqwqfbe92nuuvfu0r66f"
 
-selected_track = "5XLXrm5JVMdOus1fWmTOFw"
-user_id = "xjkgrfqwqfbe92nuuvfu0r66f"
+#pregunta al usuario su id de spotify, el nombre de la playlist a crear, 
+#y el nombre la cancion a usar para crear la playlist
 
-search_track = search_spotify("Last Surprise", type = c("track"),
+user_id <- readline(prompt = "Ingrese su user id: ")
+nombre_play = readline(prompt="Ingrese nombre la playlist a crear: ")
+selected_track = readline(prompt="Ingrese nombre de la cancion: ")
+
+#Busqueda de spotifyr
+search_track = search_spotify(selected_track, type = c("track"),
                               market = NULL, limit = 20, offset = 0, include_external = NULL,
                               authorization = get_spotify_access_token(),
                               include_meta_info = FALSE)
 
-search_filtered = subset(search_track, select= c("name", "album.name", "uri"))
+# Filtro de search_track a solo las variables que nos interesan
+search_filtered = subset(search_track, select= c("name", "album.name", "uri", "id"))
+print(search_filtered)
+
+#Le pregunta al usuario cual cancion es la que quiere. Muchas tienen el mismo nombre
+selected_search <- readline(prompt = "Seleccione numero de la canción: ")
+
+#Extrae valores interesantes de la busqueda
+selected_track = search_filtered[selected_search,3:4]
+selected_id = pull(selected_track, var=2)
+selected_uri = pull(selected_track, var=1)
 
 
 ## reducción de columnas a aquellas que nos interesan más. Los features.
@@ -44,10 +60,10 @@ names(beats2)[1] <- 'uri'
 beats2 <- unique(beats2, by = "uri")
 
 ## tomamos los features de la cancion seleccionada
-temp_features = get_track_audio_features(selected_track, authorization = get_spotify_access_token())
+temp_features = get_track_audio_features(selected_id, authorization = get_spotify_access_token())
 
 ## mismo cambio de nombre anterior
-names(temp_features)[13] <- 'uri'
+#names(temp_features)[13] <- 'uri'
 
 ## seleccionamos los mismos features que antes en la track seleccionada
 track_features = subset(temp_features, select= c("uri", "danceability", "energy", "instrumentalness", "liveness", "loudness", "speechiness", "tempo", "valence"))
@@ -101,7 +117,7 @@ cluster_tracks=order(k3$cluster)
 cluster_data = data.frame(beats3$uri[cluster_tracks],k3$cluster[cluster_tracks])
 
 ## Reconocemos el cluster seleccionado
-selected_cluster = cluster_data[cluster_data$beats3.uri.cluster_tracks.== selected_track, 2]
+selected_cluster = cluster_data[cluster_data$beats3.uri.cluster_tracks.== selected_uri, 2]
 
 ##creamos un dataframe con las canciones del cluster seleccionado
 playlist_data = cluster_data[cluster_data$k3.cluster.cluster_tracks.== selected_cluster, ]
@@ -112,9 +128,10 @@ playlist_data = cluster_data[cluster_data$k3.cluster.cluster_tracks.== selected_
 ## tomar valores extremos del cluster que puede que no representen bien a la
 ## cancion o se sienta que no pertenezcan a la recomendacion. 
 new_playlist = playlist_data[sample(nrow(playlist_data), 45), ]
+new_playlist[nrow(new_playlist) + 1,] = c(selected_uri,selected_cluster)
 
 ## Con spotifyr creamos una nueva playlist publica llamada Proyecto1
-playlist = create_playlist(user_id, "Proyecto1", public = TRUE, collaborative = FALSE,
+playlist = create_playlist(user_id, nombre_play, public = TRUE, collaborative = FALSE,
                 description = NULL, authorization = get_spotify_authorization_code())
 
 ## Tomamos la playlist que creamos con las canciones aleatorias del cluster 
@@ -124,7 +141,7 @@ playlist_vector = as.character(new_playlist[,1])
 
 ## Del vector de la playlist, obtenemos un string, pre-formateado de una
 ## manera oportuna para el futuro json
-uris = paste0('\"',playlist_vector, sep = '\",')
+uris = paste0('\"',playlist_vector, collapse = '\",', recycle0 = TRUE)
 
 
 ### Parsing para el request en formato JSON, esto va acompañando las URIs
@@ -136,7 +153,7 @@ preData = '{
 ## de caso contrario, la ultima track llevara un espacio haciendo que el ultimo
 ## URI sea invalido, botando todo el request.
 
-postData ='"spotify:track:4cPnNnTMkJ6soUOUzEtmcp"
+postData ='"
   ],
   "position": 0
 }'
@@ -147,7 +164,7 @@ postData ='"spotify:track:4cPnNnTMkJ6soUOUzEtmcp"
 ## nueva linea en una fila independiente. Luego usamos un paste0() con
 ## collapse para lograr guardar el formato que nos dio originalmente cat()
 
-actualData <- capture.output(cat(preData,uris,postData))
+actualData <- paste0(preData,uris,postData)
 actualData <- paste0(actualData, collapse = '\n')
 
 ## urlapi es la base del endpoint para agregar canciones a una playlist
